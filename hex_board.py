@@ -1,0 +1,132 @@
+from typing import Tuple, Optional, Dict
+import math
+from constants import *
+
+class HexTile:
+    """Represents a single hexagonal tile."""
+    
+    def __init__(self, q: int, r: int, color: Tuple[int, int, int]):
+        self.q = q
+        self.r = r
+        self.color = color
+        self.piece = None  # Will hold (color, piece_name) tuple
+        self.pixel_pos = None  # Will be set during rendering
+        
+    def set_piece(self, color: str, piece_name: str):
+        """Place a piece on this tile."""
+        self.piece = (color, piece_name)
+        
+    def remove_piece(self):
+        """Remove piece from this tile."""
+        self.piece = None
+        
+    def has_piece(self) -> bool:
+        """Check if tile has a piece."""
+        return self.piece is not None
+    
+    def get_piece(self) -> Optional[Tuple[str, str]]:
+        """Get the piece on this tile."""
+        return self.piece
+
+
+class HexBoard:
+    """Represents a hexagonal chess board using axial coordinates."""
+    
+    def __init__(self, size: int, hex_radius: float):
+        self.size = size
+        self.radius = hex_radius
+        self.tiles: Dict[Tuple[int, int], HexTile] = {}
+        self._generate_tiles()
+        
+    def _generate_tiles(self):
+        """Generate hex tiles using axial coordinates (q, r)."""
+        for q in range(-self.size + 1, self.size):
+            r1 = max(-self.size + 1, -q - self.size + 1)
+            r2 = min(self.size - 1, -q + self.size - 1)
+            for r in range(r1, r2 + 1):
+                color = self._get_hex_color(q, r)
+                self.tiles[(q, r)] = HexTile(q, r, color)
+    
+    def _get_hex_color(self, q: int, r: int) -> Tuple[int, int, int]:
+        """
+        Determine hex color using 3-coloring algorithm.
+        For hexagonal grids, we can use: (q - r) mod 3
+        This ensures no two adjacent hexagons have the same color.
+        """
+        color_index = (q - r) % 3
+        colors = [GREY, WHITE, BLACK]
+        return colors[color_index]
+    
+    def axial_to_pixel(self, q: int, r: int, center_x: float, center_y: float) -> Tuple[float, float]:
+        """Convert axial coordinates to pixel coordinates."""
+        x = center_x + self.radius * (3/2 * q)
+        y = center_y + self.radius * (math.sqrt(3)/2 * q + math.sqrt(3) * r)
+        return x, y
+    
+    def pixel_to_axial(self, x: float, y: float, center_x: float, center_y: float) -> Optional[Tuple[int, int]]:
+        """Convert pixel coordinates to axial coordinates."""
+        # Convert to fractional axial coordinates
+        x_rel = x - center_x
+        y_rel = y - center_y
+        
+        q = (2.0/3.0 * x_rel) / self.radius
+        r = (-1.0/3.0 * x_rel + math.sqrt(3)/3 * y_rel) / self.radius
+        
+        # Round to nearest hex
+        return self._axial_round(q, r)
+    
+    def _axial_round(self, q: float, r: float) -> Optional[Tuple[int, int]]:
+        """Round fractional axial coordinates to nearest hex."""
+        s = -q - r
+        
+        q_int = round(q)
+        r_int = round(r)
+        s_int = round(s)
+        
+        q_diff = abs(q_int - q)
+        r_diff = abs(r_int - r)
+        s_diff = abs(s_int - s)
+        
+        if q_diff > r_diff and q_diff > s_diff:
+            q_int = -r_int - s_int
+        elif r_diff > s_diff:
+            r_int = -q_int - s_int
+        
+        # Check if this coordinate is on the board
+        if (q_int, r_int) in self.tiles:
+            return (q_int, r_int)
+        return None
+    
+    def get_tile(self, q: int, r: int) -> Optional[HexTile]:
+        """Get tile at given axial coordinates."""
+        return self.tiles.get((q, r))
+    
+    def place_piece(self, q: int, r: int, color: str, piece_name: str) -> bool:
+        """Place a piece on the board."""
+        tile = self.get_tile(q, r)
+        if tile:
+            tile.set_piece(color, piece_name)
+            return True
+        return False
+    
+    def move_piece(self, from_q: int, from_r: int, to_q: int, to_r: int) -> bool:
+        """Move a piece from one tile to another."""
+        from_tile = self.get_tile(from_q, from_r)
+        to_tile = self.get_tile(to_q, to_r)
+        
+        if from_tile and to_tile and from_tile.has_piece() and from_tile != to_tile:
+            to_tile.piece = from_tile.piece
+            from_tile.remove_piece()
+            return True
+        return False
+    
+    def get_hex_corners(self, center_x: float, center_y: float) -> list:
+        """Calculate the six corner points of a hexagon."""
+        corners = []
+        for i in range(6):
+            angle_deg = 60 * i
+            angle_rad = math.pi / 180 * angle_deg
+            x = center_x + self.radius * math.cos(angle_rad)
+            y = center_y + self.radius * math.sin(angle_rad)
+            corners.append((x, y))
+        return corners
