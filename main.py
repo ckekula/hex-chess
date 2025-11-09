@@ -4,10 +4,12 @@ from typing import Tuple
 from constants import *
 from hex_board import HexBoard
 from asset_manager import PieceImageManager
+from move_validator import MoveValidator
 
 def draw_hexagon(surface: pygame.Surface, center: Tuple[float, float], 
                  radius: float, color: Tuple[int, int, int], 
-                 outline_color: Tuple[int, int, int], highlight: bool = False):
+                 outline_color: Tuple[int, int, int], highlight: bool = False,
+                 legal_move: bool = False):
     """Draw a single hexagon with outline."""
     corners = []
     for i in range(6):
@@ -27,6 +29,10 @@ def draw_hexagon(surface: pygame.Surface, center: Tuple[float, float],
         pygame.draw.polygon(s, HIGHLIGHT, s_corners)
         surface.blit(s, (center[0] - radius, center[1] - radius))
     
+    # Draw legal move indicator (green dot)
+    if legal_move:
+        pygame.draw.circle(surface, (0, 200, 0, 180), (int(center[0]), int(center[1])), int(radius * 0.3))
+    
     # Draw outline
     outline_width = 3 if highlight else 2
     pygame.draw.polygon(surface, outline_color, corners, outline_width)
@@ -36,12 +42,13 @@ def main():
     """Main game loop."""
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-    pygame.display.set_caption("Hexagonal Chess Board")
+    pygame.display.set_caption("Hexagonal Chess - Glinski's Variant")
     clock = pygame.time.Clock()
     
     # Create the hex board and piece manager
     board = HexBoard(BOARD_SIZE, HEX_RADIUS)
     piece_manager = PieceImageManager()
+    move_validator = MoveValidator(board)
     
     # Calculate center of screen
     center_x = WINDOW_WIDTH // 2
@@ -91,6 +98,7 @@ def main():
     selected_tile = None
     dragging = False
     drag_piece = None
+    legal_moves = []
     
     # Font for info
     font = pygame.font.Font(None, 24)
@@ -111,17 +119,27 @@ def main():
                 if hovered_coord:
                     tile = board.get_tile(*hovered_coord)
                     if tile and tile.has_piece():
-                        selected_tile = hovered_coord
-                        dragging = True
-                        drag_piece = tile.get_piece()
+                        piece_color, _ = tile.get_piece()
+                        # Only allow selecting pieces of current turn
+                        if piece_color == move_validator.current_turn:
+                            selected_tile = hovered_coord
+                            dragging = True
+                            drag_piece = tile.get_piece()
+                            legal_moves = move_validator.get_legal_moves(*hovered_coord)
             elif event.type == pygame.MOUSEBUTTONUP:
                 if dragging and selected_tile and hovered_coord:
-                    # Move piece
-                    board.move_piece(selected_tile[0], selected_tile[1], 
-                                   hovered_coord[0], hovered_coord[1])
+                    # Check if move is legal
+                    if move_validator.is_legal_move(selected_tile[0], selected_tile[1],
+                                                   hovered_coord[0], hovered_coord[1]):
+                        # Move piece
+                        board.move_piece(selected_tile[0], selected_tile[1], 
+                                       hovered_coord[0], hovered_coord[1])
+                        # Switch turns
+                        move_validator.switch_turn()
                 dragging = False
                 selected_tile = None
                 drag_piece = None
+                legal_moves = []
         
         # Clear screen
         screen.fill(BACKGROUND)
@@ -133,7 +151,10 @@ def main():
             
             # Highlight if selected or hovered
             highlight = (q, r) == selected_tile or (q, r) == hovered_coord
-            draw_hexagon(screen, (x, y), board.radius, tile.color, OUTLINE, highlight)
+            is_legal_move = (q, r) in legal_moves
+            
+            draw_hexagon(screen, (x, y), board.radius, tile.color, OUTLINE, 
+                        highlight, is_legal_move)
             
             # Draw piece if present and not being dragged
             if tile.has_piece() and (not dragging or (q, r) != selected_tile):
@@ -152,15 +173,24 @@ def main():
                 screen.blit(piece_image, rect)
         
         # Draw info text
-        text = font.render(f"Hexagonal Board: {BOARD_SIZE} per side", True, (0, 0, 0))
+        text = font.render(f"Hexagonal Chess - Glinski's Variant", True, (0, 0, 0))
         screen.blit(text, (10, 10))
         
-        info_text = small_font.render("Click and drag pieces to move them", True, (0, 0, 0))
-        screen.blit(info_text, (10, 35))
+        turn_text = font.render(f"Turn: {move_validator.current_turn.upper()}", True, 
+                               (255, 255, 255) if move_validator.current_turn == "white" else (0, 0, 0))
+        turn_rect = turn_text.get_rect()
+        turn_rect.topleft = (10, 40)
+        # Draw background for turn indicator
+        bg_color = (80, 80, 80) if move_validator.current_turn == "white" else (220, 220, 220)
+        pygame.draw.rect(screen, bg_color, turn_rect.inflate(10, 5))
+        screen.blit(turn_text, turn_rect)
+        
+        info_text = small_font.render("Green dots = legal moves", True, (0, 0, 0))
+        screen.blit(info_text, (10, 75))
         
         if hovered_coord:
             coord_text = small_font.render(f"Hex: ({hovered_coord[0]}, {hovered_coord[1]})", True, (0, 0, 0))
-            screen.blit(coord_text, (10, 55))
+            screen.blit(coord_text, (10, 95))
         
         pygame.display.flip()
         clock.tick(60)
