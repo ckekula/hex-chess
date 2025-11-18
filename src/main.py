@@ -5,6 +5,8 @@ from hex_board import HexBoard
 from asset_manager import PieceImageManager
 from renderer import Renderer
 from game import MoveValidator
+from evaluation import Evaluator
+from ai_engine import HexChessEngine
 
 def setup_initial_board(board: HexBoard):
     """Set up the initial chess piece positions."""
