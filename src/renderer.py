@@ -108,16 +108,8 @@ class Renderer:
 
             # Header label
             text = self.small_font.render(label, True, text_color)
-            text_rect = text.get_rect(midleft=(panel_x + 7, panel_y + header_h // 2))
+            text_rect = text.get_rect(center=(panel_x + panel_w // 2, panel_y + header_h // 2))
             screen.blit(text, text_rect)
-
-            # Count badge (top right)
-            badge = pygame.Surface((22, 18), pygame.SRCALPHA)
-            pygame.draw.rect(badge, (*border_color[:3], 230), badge.get_rect(), border_radius=9)
-            screen.blit(badge, (panel_x + panel_w - 27, panel_y + 2))
-            count = self.small_font.render(str(len(pieces)), True, (255, 255, 255))
-            count_rect = count.get_rect(center=(panel_x + panel_w - 16, panel_y + 11))
-            screen.blit(count, count_rect)
 
             # Draw piece icons in grid
             start_y = panel_y + header_h + section_pad
