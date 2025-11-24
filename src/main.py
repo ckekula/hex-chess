@@ -1,6 +1,6 @@
 import pygame
 import copy
-import threading
+import asyncio
 from constants import *
 from hex_board import HexBoard
 from asset_manager import PieceImageManager
@@ -62,7 +62,7 @@ def setup_initial_board(board: HexBoard):
     board.place_piece(-4, -1, "black", "pawn")
 
 
-def main():
+async def main():
     """Main game loop."""
     pygame.init()
     # Try to adapt the board size to the current display so it fits smaller screens.
@@ -265,9 +265,8 @@ def main():
         
         pygame.display.flip()
         clock.tick(60)
+        await asyncio.sleep(0)
     
     pygame.quit()
 
-
-if __name__ == "__main__":
-    main()
+asyncio.run(main())
