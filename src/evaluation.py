@@ -3,7 +3,7 @@ from hex_board import HexGeometry
 
 class ProceduralPST:
     """Procedural piece-square table generation for hexagonal boards."""
-        
+    
     @staticmethod
     def pawn_pst(q: int, r: int, color: str, is_endgame: bool = False) -> int:
         """
@@ -147,58 +147,6 @@ class ProceduralPST:
         
         return centralization_bonus + edge_penalty + endgame_bonus
     
-    # @staticmethod
-    # def king_pst(q: int, r: int, color: str, is_endgame: bool = False) -> int:
-    #     """
-    #     King evaluation - complete opposite in middlegame vs endgame.
-    #     Symmetrical for both colors.
-    #     """
-    #     rank = HexGeometry.get_rank(q, r, color, BOARD_SIZE)
-    #     center_dist = HexGeometry.distance_from_center(q, r)
-    #     edge_dist = HexGeometry.distance_from_edge(q, r, BOARD_SIZE)
-    #     file_centrality = HexGeometry.get_file_centrality(q, BOARD_SIZE)
-        
-    #     if is_endgame:
-    #         # ENDGAME: King should be centralized and active
-    #         centralization_bonus = (4 - center_dist) * 10
-            
-    #         # Back rank is bad in endgame
-    #         if rank <= 1:
-    #             back_rank_penalty = -40
-    #         elif rank <= 2:
-    #             back_rank_penalty = -20
-    #         else:
-    #             back_rank_penalty = 0
-            
-    #         return centralization_bonus + back_rank_penalty
-    #     else:
-    #         # MIDDLEGAME: King should be safe on back ranks
-    #         # Prefer back rank positions (rank 0-1)
-    #         if rank <= 1:
-    #             safety_bonus = 50  # Strong bonus for being on/near back rank
-    #         elif rank == 2:
-    #             safety_bonus = 10
-    #         else:
-    #             safety_bonus = 0
-            
-    #         # Prefer edges in middlegame (castled position)
-    #         if edge_dist <= 1 and file_centrality <= 1:
-    #             edge_bonus = 20
-    #         else:
-    #             edge_bonus = 0
-            
-    #         # Center is dangerous (distance from center is good)
-    #         center_safety = center_dist * 15
-            
-    #         # Forward movement is dangerous
-    #         if rank >= 3:
-    #             exposure_penalty = -30
-    #         elif rank == 2:
-    #             exposure_penalty = -15
-    #         else:
-    #             exposure_penalty = 0
-            
-    #         return safety_bonus + edge_bonus + center_safety + exposure_penalty
 
     @staticmethod
     def king_pst(q: int, r: int, color: str, is_endgame: bool = False) -> int:

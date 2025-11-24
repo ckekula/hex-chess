@@ -33,3 +33,5 @@ PHASE_VALUES = {
     'pawn': 0,
     'king': 0
 }
+
+COMPUTATION_DEPTH = 3

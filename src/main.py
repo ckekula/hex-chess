@@ -104,7 +104,7 @@ def main():
 
     #Initialize chess engine
     engine_thinking = False
-    chess_engine = ChessEngine(board)
+    chess_engine = ChessEngine(board, depth=COMPUTATION_DEPTH)
     
     # Set up initial piece positions
     setup_initial_board(board)

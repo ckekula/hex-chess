@@ -1,27 +1,18 @@
 import copy
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from game import MoveValidator
 from evaluation import Evaluator
+from constants import PIECE_VALUES
 
 class ChessEngine:
-    """
-    Simple 1-ply engine for your hex chess:
-      - engine_color determined by board.flipped (True -> white, else black)
-      - searches all legal moves for engine pieces (uses MoveValidator)
-      - simulates each move, evaluates resulting board with Evaluator
-      - chooses best move from engine's perspective and executes it (with promotion handling)
-    """
-
-    def __init__(self, board, depth=2):
+    def __init__(self, board, depth):
         self.board = board
-        # engine is white if board is flipped, otherwise black (as you specified)
+        # engine is white if board is flipped, otherwise black
         self.engine_color = 'white' if getattr(board, "flipped", False) else 'black'
         self.validator = MoveValidator(board)
-        self.search_depth = depth  # Add configurable search depth
+        self.search_depth = depth
+        self.nodes_searched = 0  # For debugging
 
-    # -------------------------
-    # Snapshot / restore helpers
-    # -------------------------
     def _snapshot_board(self):
         """Return a snapshot of pieces & mutable board state to restore after simulation."""
         # snapshot pieces on tiles: map (q,r) -> piece or None
@@ -54,10 +45,8 @@ class ChessEngine:
         self.board.pending_promotion = copy.deepcopy(state_snapshot["pending_promotion"])
         self.board.captured_pieces = copy.deepcopy(state_snapshot["captured_pieces"])
 
-    # -------------------------
-    # Move evaluation helpers
-    # -------------------------
-    def _evaluate_board_from_engine_perspective(self) -> float:
+
+    def _evaluate_engine_position(self) -> float:
         """
         Evaluate board and return a score oriented to the engine: higher == better for engine.
         Uses Evaluator.evaluate which returns (score, total_material, phase), where score positive favors white.
@@ -69,119 +58,80 @@ class ChessEngine:
         else:
             return -score
 
-    # -------------------------
-    # Main move search + play
-    # -------------------------
+    def _order_moves(self, moves: List[Tuple[Tuple[int,int], Tuple[int,int]]], current_color: str) -> List[Tuple[Tuple[int,int], Tuple[int,int]]]:
+        """
+        Order moves to improve alpha-beta pruning efficiency.
+        Priority: captures (MVV-LVA), then other moves.
+        """
+        def move_score(move):
+            (from_q, from_r), (to_q, to_r) = move
+            score = 0
+            
+            # Check if it's a capture
+            to_tile = self.board.get_tile(to_q, to_r)
+            if to_tile and to_tile.has_piece():
+                victim_color, victim_name = to_tile.get_piece()
+                if victim_color != current_color:
+                    # MVV-LVA: Most Valuable Victim - Least Valuable Attacker
+                    from_tile = self.board.get_tile(from_q, from_r)
+                    if from_tile and from_tile.has_piece():
+                        _, attacker_name = from_tile.get_piece()
+                        victim_value = PIECE_VALUES.get(victim_name, 0)
+                        attacker_value = PIECE_VALUES.get(attacker_name, 0)
+                        # Prioritize capturing high-value pieces with low-value pieces
+                        score = victim_value * 10 - attacker_value
+            
+            # Small bonus for center moves
+            center_dist = abs(to_q) + abs(to_r) + abs(-to_q - to_r)
+            score -= center_dist
+            
+            return score
+        
+        # Sort moves by score (highest first)
+        return sorted(moves, key=move_score, reverse=True)
+
     def _minimax(self, depth: int, is_maximizing: bool, alpha: float = float('-inf'), beta: float = float('inf')) -> float:
         """
         Minimax with alpha-beta pruning.
         is_maximizing: True if we're maximizing (engine's turn), False if minimizing (opponent's turn)
         Returns the best evaluation score from current position.
         """
+        self.nodes_searched += 1
+
         # Base case: reached max depth or game over
         if depth == 0:
-            return self._evaluate_board_from_engine_perspective()
+            return self._evaluate_engine_position()
+
+        current_turn = getattr(self.board, "current_turn", 'white')
+        all_moves = []
 
         # Check if current player has any legal moves
-        has_moves = False
         for (q, r), tile in self.board.tiles.items():
             if not tile or not tile.has_piece():
                 continue
             piece_color, _ = tile.get_piece()
-            current_turn = getattr(self.board, "current_turn", 'white')
             if piece_color != current_turn:
                 continue
             moves = self.validator.get_legal_moves_with_check(q, r)
-            if moves:
-                has_moves = True
-                break
+            for (to_q, to_r) in moves:
+                all_moves.append(((q, r), (to_q, to_r)))
 
         # If no moves available, return current evaluation (checkmate/stalemate)
-        if not has_moves:
-            return self._evaluate_board_from_engine_perspective()
+        if not all_moves:
+            eval_score = self._evaluate_engine_position()
+            # Add mate detection bonus/penalty
+            if self.validator.is_in_check(current_turn):
+                # Checkmate - prefer faster mates
+                eval_score = float('-inf') + depth if is_maximizing else float('inf') - depth
+            return eval_score
+
+        all_moves = self._order_moves(all_moves, current_turn)
 
         if is_maximizing:
             max_eval = float('-inf')
-            for (q, r), tile in self.board.tiles.items():
-                if not tile or not tile.has_piece():
-                    continue
-                piece_color, _ = tile.get_piece()
-                if piece_color != self.engine_color:
-                    continue
-
-                moves = self.validator.get_legal_moves_with_check(q, r)
-                for (to_q, to_r) in moves:
-                    pieces_snap, state_snap = self._snapshot_board()
-                    self.board.move_piece(q, r, to_q, to_r)
-                    
-                    # Handle promotion
-                    if getattr(self.board, "pending_promotion", None):
-                        pq, pr, pcolor = self.board.pending_promotion
-                        prom_tile = self.board.get_tile(pq, pr)
-                        if prom_tile:
-                            prom_tile.piece = (pcolor, 'queen')
-                        self.board.pending_promotion = None
-                        self.board.current_turn = 'white' if state_snap["current_turn"] == 'black' else 'black'
-
-                    eval_score = self._minimax(depth - 1, False, alpha, beta)
-                    self._restore_board(pieces_snap, state_snap)
-
-                    max_eval = max(max_eval, eval_score)
-                    alpha = max(alpha, eval_score)
-                    if beta <= alpha:
-                        break  # Beta cutoff
-            return max_eval
-        else:
-            min_eval = float('inf')
-            opponent_color = 'black' if self.engine_color == 'white' else 'white'
-            for (q, r), tile in self.board.tiles.items():
-                if not tile or not tile.has_piece():
-                    continue
-                piece_color, _ = tile.get_piece()
-                if piece_color != opponent_color:
-                    continue
-
-                moves = self.validator.get_legal_moves_with_check(q, r)
-                for (to_q, to_r) in moves:
-                    pieces_snap, state_snap = self._snapshot_board()
-                    self.board.move_piece(q, r, to_q, to_r)
-                    
-                    # Handle promotion
-                    if getattr(self.board, "pending_promotion", None):
-                        pq, pr, pcolor = self.board.pending_promotion
-                        prom_tile = self.board.get_tile(pq, pr)
-                        if prom_tile:
-                            prom_tile.piece = (pcolor, 'queen')
-                        self.board.pending_promotion = None
-                        self.board.current_turn = 'white' if state_snap["current_turn"] == 'black' else 'black'
-
-                    eval_score = self._minimax(depth - 1, True, alpha, beta)
-                    self._restore_board(pieces_snap, state_snap)
-
-                    min_eval = min(min_eval, eval_score)
-                    beta = min(beta, eval_score)
-                    if beta <= alpha:
-                        break  # Alpha cutoff
-            return min_eval
-
-    def find_best_move(self) -> Optional[Tuple[Tuple[int,int], Tuple[int,int], float]]:
-        """
-        Search using minimax to find best move considering multiple plies ahead.
-        """
-        best_move = None
-        best_value = float('-inf')
-
-        for (q, r), tile in self.board.tiles.items():
-            if not tile or not tile.has_piece():
-                continue
-            piece_color, _ = tile.get_piece()
-            if piece_color != self.engine_color:
-                continue
-
-            moves = self.validator.get_legal_moves_with_check(q, r)
-            for (to_q, to_r) in moves:
+            for (from_q, from_r), (to_q, to_r) in all_moves:
                 pieces_snap, state_snap = self._snapshot_board()
-                self.board.move_piece(q, r, to_q, to_r)
+                self.board.move_piece(from_q, from_r, to_q, to_r)
                 
                 # Handle promotion
                 if getattr(self.board, "pending_promotion", None):
@@ -192,14 +142,81 @@ class ChessEngine:
                     self.board.pending_promotion = None
                     self.board.current_turn = 'white' if state_snap["current_turn"] == 'black' else 'black'
 
-                # Evaluate with minimax from opponent's perspective
-                value = self._minimax(self.search_depth - 1, False)
+                eval_score = self._minimax(depth - 1, False, alpha, beta)
                 self._restore_board(pieces_snap, state_snap)
 
-                if value > best_value:
-                    best_value = value
-                    best_move = ((q, r), (to_q, to_r), value)
+                max_eval = max(max_eval, eval_score)
+                alpha = max(alpha, eval_score)
+                if beta <= alpha:
+                    break # Beta cutoff
+            return max_eval
 
+        else:
+            min_eval = float('inf')
+            for (from_q, from_r), (to_q, to_r) in all_moves:
+                pieces_snap, state_snap = self._snapshot_board()
+                self.board.move_piece(from_q, from_r, to_q, to_r)
+                
+                if getattr(self.board, "pending_promotion", None):
+                    pq, pr, pcolor = self.board.pending_promotion
+                    prom_tile = self.board.get_tile(pq, pr)
+                    if prom_tile:
+                        prom_tile.piece = (pcolor, 'queen')
+                    self.board.pending_promotion = None
+                    self.board.current_turn = 'white' if state_snap["current_turn"] == 'black' else 'black'
+
+                eval_score = self._minimax(depth - 1, True, alpha, beta)
+                self._restore_board(pieces_snap, state_snap)
+
+                min_eval = min(min_eval, eval_score)
+                beta = min(beta, eval_score)
+                if beta <= alpha:
+                    break # alpha cutoff
+            return min_eval
+
+    def find_best_move(self) -> Optional[Tuple[Tuple[int,int], Tuple[int,int], float]]:
+        """Search using minimax to find best move."""
+        self.nodes_searched = 0
+        
+        best_move = None
+        best_value = float('-inf')
+        
+        # Get all legal moves for engine
+        all_moves = []
+        for (q, r), tile in self.board.tiles.items():
+            if not tile or not tile.has_piece():
+                continue
+            piece_color, _ = tile.get_piece()
+            if piece_color != self.engine_color:
+                continue
+            
+            moves = self.validator.get_legal_moves_with_check(q, r)
+            for (to_q, to_r) in moves:
+                all_moves.append(((q, r), (to_q, to_r)))
+        
+        # Order moves before searching
+        all_moves = self._order_moves(all_moves, self.engine_color)
+        
+        for (from_q, from_r), (to_q, to_r) in all_moves:
+            pieces_snap, state_snap = self._snapshot_board()
+            self.board.move_piece(from_q, from_r, to_q, to_r)
+            
+            if getattr(self.board, "pending_promotion", None):
+                pq, pr, pcolor = self.board.pending_promotion
+                prom_tile = self.board.get_tile(pq, pr)
+                if prom_tile:
+                    prom_tile.piece = (pcolor, 'queen')
+                self.board.pending_promotion = None
+                self.board.current_turn = 'white' if state_snap["current_turn"] == 'black' else 'black'
+            
+            value = self._minimax(self.search_depth - 1, False)
+            self._restore_board(pieces_snap, state_snap)
+            
+            if value > best_value:
+                best_value = value
+                best_move = ((from_q, from_r), (to_q, to_r), value)
+        
+        print(f"Searched {self.nodes_searched} nodes.")
         return best_move
 
     def play_best_move(self) -> Optional[dict]:
