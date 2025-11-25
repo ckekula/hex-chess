@@ -75,6 +75,10 @@ async def main():
     promotion_button_size = 60
     promotion_buttons = {}
 
+    # Add move counter and flip lock
+    move_count = 0
+    flip_locked = False
+
     # Create a temporary board with the default radius to compute how many pixels it needs
     temp_board = HexBoard(BOARD_SIZE, HEX_RADIUS)
     xs, ys = [], []
@@ -108,7 +112,7 @@ async def main():
     
     # Add delay for engine move
     engine_move_delay = 0 
-    ENGINE_DELAY_FRAMES = 1 # Wait 1 frame at 60fps before engine moves
+    ENGINE_DELAY_FRAMES = 30 # Wait 30 frame at 60fps before engine moves
     
     # Set up initial piece positions
     setup_initial_board(board)
@@ -153,7 +157,7 @@ async def main():
 
         reset_hover = reset_button_rect.collidepoint(mouse_pos)
         undo_hover = undo_button_rect.collidepoint(mouse_pos)
-        flip_hover = flip_button_rect.collidepoint(mouse_pos)
+        flip_hover = flip_button_rect.collidepoint(mouse_pos) and not flip_locked
 
         # Check promotion button hover
         promotion_hover = None
@@ -171,6 +175,9 @@ async def main():
                 if board.pending_promotion and promotion_hover:
                     board.promote_pawn(promotion_hover)
                     promotion_buttons = {}
+                    move_count += 1
+                    if not flip_locked and move_count > 0:
+                        flip_locked = True
                     # start engine delay after promotion
                     if board.current_turn == chess_engine.engine_color:
                         engine_move_delay = ENGINE_DELAY_FRAMES
@@ -188,6 +195,10 @@ async def main():
                     legal_moves = []
                     history = []
                     engine_move_delay = 0
+                    move_count = 0
+                    flip_locked = False
+                    # Reset engine to default color
+                    chess_engine.engine_color = 'white' if getattr(board, "flipped", False) else 'black'
                 elif undo_hover:
                     if history:
                         board = history.pop()
@@ -201,8 +212,25 @@ async def main():
                         drag_piece = None
                         legal_moves = []
                         engine_move_delay = 0
-                elif flip_hover:
+
+                        #Update engine reference to restored board
+                        chess_engine.board = board
+                        chess_engine.validator.board = board
+                        chess_engine.validator.move_generator.board = board
+
+                        # Update move count
+                        move_count = max(0, move_count - 1)
+                        if move_count == 0:
+                            flip_locked = False
+                            
+                        # Trigger engine move if it's engine's turn after undo
+                        if board.current_turn == chess_engine.engine_color:
+                            engine_move_delay = ENGINE_DELAY_FRAMES
+                        
+                elif flip_hover and not flip_locked:
                     board.toggle_flip()
+                    # Update engine color when board is flipped
+                    chess_engine.engine_color = 'white' if getattr(board, "flipped", False) else 'black'
                 elif hovered_coord:
                     tile = board.get_tile(*hovered_coord)
                     if tile and tile.has_piece():
@@ -222,7 +250,12 @@ async def main():
                         history.append(copy.deepcopy(board))
                         move_made = board.move_piece(selected_tile[0], selected_tile[1], 
                                        hovered_coord[0], hovered_coord[1])
-                
+                        if move_made:
+                            move_count += 1
+                            # Lock flip after first move
+                            if not flip_locked and move_count > 0:
+                                flip_locked = True
+
                 # Always clear selection after mouse release
                 dragging = False
                 selected_tile = None
@@ -238,7 +271,9 @@ async def main():
             engine_move_delay -= 1
             if engine_move_delay == 0:
                 # Delay complete, now engine can move
-                chess_engine.play_best_move()
+                result = chess_engine.play_best_move()
+                if result:
+                    move_count += 1
         
         # Clear screen
         screen.fill(BACKGROUND)
@@ -261,7 +296,7 @@ async def main():
         renderer.render(screen, center_x, center_y, mouse_pos, hovered_coord,
                 selected_tile, dragging, drag_piece, legal_moves,
                 reset_button_rect, undo_button_rect, flip_button_rect,
-                reset_hover, undo_hover, flip_hover, history,promotion_buttons, promotion_hover)
+                reset_hover, undo_hover, flip_hover, history,promotion_buttons, promotion_hover,flip_locked)
         
         pygame.display.flip()
         clock.tick(60)
