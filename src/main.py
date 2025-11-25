@@ -198,7 +198,8 @@ async def main():
                     move_count = 0
                     flip_locked = False
                     # Reset engine to default color
-                    chess_engine.engine_color = 'white' if getattr(board, "flipped", False) else 'black'
+                    board.flipped = False  # Reset flip state
+                    chess_engine.engine_color = 'black'
                 elif undo_hover:
                     if history:
                         board = history.pop()
@@ -231,12 +232,19 @@ async def main():
                     board.toggle_flip()
                     # Update engine color when board is flipped
                     chess_engine.engine_color = 'white' if getattr(board, "flipped", False) else 'black'
+
+                    # If we flip before any moves and it's now engine's turn, trigger engine move
+                    if move_count == 0 and board.current_turn == chess_engine.engine_color:
+                        engine_move_delay = ENGINE_DELAY_FRAMES
+                        # Lock flip immediately since game is starting
+                        flip_locked = True
+
                 elif hovered_coord:
                     tile = board.get_tile(*hovered_coord)
                     if tile and tile.has_piece():
                         piece_color, _ = tile.get_piece()
                         # Only allow selecting pieces of the current turn
-                        if piece_color == board.current_turn:
+                        if piece_color == board.current_turn and piece_color != chess_engine.engine_color:
                             selected_tile = hovered_coord
                             dragging = True
                             drag_piece = tile.get_piece()
@@ -274,6 +282,8 @@ async def main():
                 result = chess_engine.play_best_move()
                 if result:
                     move_count += 1
+                    if not flip_locked:
+                        flip_locked = True
         
         # Clear screen
         screen.fill(BACKGROUND)
