@@ -108,7 +108,7 @@ async def main():
     
     # Add delay for engine move
     engine_move_delay = 0 
-    ENGINE_DELAY_FRAMES = 1 # Wait 1 frame at 60fps before engine moves
+    ENGINE_DELAY_FRAMES = 30 # Wait 1 frame at 60fps before engine moves
     
     # Set up initial piece positions
     setup_initial_board(board)
@@ -125,6 +125,7 @@ async def main():
     reset_button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
     undo_button_rect = pygame.Rect(button_x, button_y + button_height + 10, button_width, button_height)
     flip_button_rect = pygame.Rect(button_x, button_y + (button_height + 10) * 2, button_width, button_height)
+    flip_locked = False
 
     # For piece dragging
     selected_tile = None
@@ -153,7 +154,7 @@ async def main():
 
         reset_hover = reset_button_rect.collidepoint(mouse_pos)
         undo_hover = undo_button_rect.collidepoint(mouse_pos)
-        flip_hover = flip_button_rect.collidepoint(mouse_pos)
+        flip_hover = flip_button_rect.collidepoint(mouse_pos) and not flip_locked
 
         # Check promotion button hover
         promotion_hover = None
@@ -188,6 +189,7 @@ async def main():
                     legal_moves = []
                     history = []
                     engine_move_delay = 0
+                    flip_locked = False
                 elif undo_hover:
                     if history:
                         board = history.pop()
@@ -231,6 +233,7 @@ async def main():
 
                 # start delay timer instead of immediate engine move
                 if move_made and board.current_turn == chess_engine.engine_color:
+                    flip_locked = True
                     engine_move_delay = ENGINE_DELAY_FRAMES
         
         # Only trigger engine move after delay has elapsed
@@ -261,7 +264,7 @@ async def main():
         renderer.render(screen, center_x, center_y, mouse_pos, hovered_coord,
                 selected_tile, dragging, drag_piece, legal_moves,
                 reset_button_rect, undo_button_rect, flip_button_rect,
-                reset_hover, undo_hover, flip_hover, history,promotion_buttons, promotion_hover)
+                reset_hover, undo_hover, flip_hover, history,promotion_buttons, promotion_hover, flip_locked)
         
         pygame.display.flip()
         clock.tick(60)
