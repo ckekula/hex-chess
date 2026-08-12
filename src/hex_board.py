@@ -1,20 +1,20 @@
-from typing import Tuple, Optional, Dict
 import math
+
 from constants import *
 from game import MoveGenerator
 
+
 class HexTile:
-    """Represents a single hexagonal tile."""
+    """a single hexagonal tile."""
     
-    def __init__(self, q: int, r: int, color: Tuple[int, int, int]):
+    def __init__(self, q: int, r: int, color: tuple[int, int, int]):
         self.q = q
         self.r = r
         self.color = color
-        self.piece = None  # Will hold (color, piece_name) tuple
+        self.piece = None  # holds (color, piece_name) tuple
         self.pixel_pos = None  # Will be set during rendering
         
     def set_piece(self, color: str, piece_name: str):
-        """Place a piece on this tile."""
         self.piece = (color, piece_name)
         
     def remove_piece(self):
@@ -25,19 +25,19 @@ class HexTile:
         """Check if tile has a piece."""
         return self.piece is not None
     
-    def get_piece(self) -> Optional[Tuple[str, str]]:
+    def get_piece(self) -> tuple[str, str] | None:
         """Get the piece on this tile."""
         return self.piece
 
 
 class HexBoard:
-    """Represents a hexagonal chess board using axial coordinates."""
+    """Represent the hexagonal board using axial coordinates."""
     
     def __init__(self, size: int, hex_radius: float):
         self.size = size
         self.radius = hex_radius
-        self.tiles: Dict[Tuple[int, int], HexTile] = {}
-        self.current_turn = "white"  # Track whose turn it is
+        self.tiles: dict[tuple[int, int], HexTile] = {}
+        self.current_turn = "white"
         self.flipped = False
         self.en_passant_target = None
         self.pending_promotion = None
@@ -54,23 +54,23 @@ class HexBoard:
                 color = self._get_hex_color(q, r)
                 self.tiles[(q, r)] = HexTile(q, r, color)
     
-    def _get_hex_color(self, q: int, r: int) -> Tuple[int, int, int]:
+    def _get_hex_color(self, q: int, r: int) -> tuple[int, int, int]:
         """
         Determine hex color using 3-coloring algorithm.
         For hexagonal grids, we can use: (q - r) mod 3
         This ensures no two adjacent hexagons have the same color.
         """
         color_index = (q - r) % 3
-        colors = [GREY, WHITE, BLACK]
+        colors = [NEUTRAL_SQUARE, LIGHT_SQUARE, DARK_SQUARE]
         return colors[color_index]
     
-    def axial_to_pixel(self, q: int, r: int, center_x: float, center_y: float) -> Tuple[float, float]:
+    def axial_to_pixel(self, q: int, r: int, center_x: float, center_y: float) -> tuple[float, float]:
         """Convert axial coordinates to pixel coordinates."""
         x = center_x + self.radius * (3/2 * q)
         y = center_y + self.radius * (math.sqrt(3)/2 * q + math.sqrt(3) * r)
         return x, y
     
-    def pixel_to_axial(self, x: float, y: float, center_x: float, center_y: float) -> Optional[Tuple[int, int]]:
+    def pixel_to_axial(self, x: float, y: float, center_x: float, center_y: float) -> tuple[int, int] | None:
         """Convert pixel coordinates to axial coordinates."""
         # Convert to fractional axial coordinates
         x_rel = x - center_x
@@ -82,7 +82,7 @@ class HexBoard:
         # Round to nearest hex
         return self._axial_round(q, r)
     
-    def _axial_round(self, q: float, r: float) -> Optional[Tuple[int, int]]:
+    def _axial_round(self, q: float, r: float) -> tuple[int, int] | None:
         """Round fractional axial coordinates to nearest hex."""
         s = -q - r
         
@@ -104,7 +104,7 @@ class HexBoard:
             return (q_int, r_int)
         return None
     
-    def get_tile(self, q: int, r: int) -> Optional[HexTile]:
+    def get_tile(self, q: int, r: int) -> HexTile | None:
         """Get tile at given axial coordinates."""
         return self.tiles.get((q, r))
     
@@ -163,14 +163,10 @@ class HexBoard:
                 (-1, -1), (-2, -1), (-3, -1), (-4, -1)
             ]
         
-            if piece_color == "white" and (from_q, from_r) in white_pawn_starts:
-                # Check if moved two squares
-                if to_r == from_r - 2:
-                    self.en_passant_target = (from_q, from_r - 1)
-            elif piece_color == "black" and (from_q, from_r) in black_pawn_starts:
-                # Check if moved two squares
-                if to_r == from_r + 2:
-                    self.en_passant_target = (from_q, from_r + 1)
+            if piece_color == "white" and (from_q, from_r) in white_pawn_starts and to_r == from_r - 2:
+                self.en_passant_target = (from_q, from_r - 1)
+            elif piece_color == "black" and (from_q, from_r) in black_pawn_starts and to_r == from_r + 2:
+                self.en_passant_target = (from_q, from_r + 1)
         # Make the move
         to_tile.piece = from_tile.piece
         from_tile.remove_piece()
@@ -263,7 +259,7 @@ class HexBoard:
             'captured': to_tile.get_piece() if to_tile.has_piece() else None,
             'en_passant_target': self.en_passant_target,
             'castling_rights': getattr(self, 'castling_rights', {}).copy() if hasattr(self, 'castling_rights') else {},
-            # Add any other state you need to track
+            # Add other states needed to be tracked
         }
         return move_info
 
@@ -273,12 +269,12 @@ class HexBoard:
         to_tile = self.get_tile(to_q, to_r)
         from_tile = self.get_tile(from_q, from_r)
         
-        from_tile.place_piece(*move_info['piece'])
+        from_tile.set_piece(*move_info['piece'])
         to_tile.remove_piece()
         
         # Restore captured piece if any
         if move_info['captured']:
-            to_tile.place_piece(*move_info['captured'])
+            to_tile.set_piece(*move_info['captured'])
         
         # Restore board state
         self.en_passant_target = move_info['en_passant_target']
@@ -289,7 +285,7 @@ class HexBoard:
         self.current_turn = "white" if self.current_turn == "black" else "black"
 
 class HexGeometry:
-    """Geometric calculations for hexagonal boards."""
+    """Geometric calculations for hexagonal board."""
     
     @staticmethod
     def axial_distance(q1: int, r1: int, q2: int, r2: int) -> int:
