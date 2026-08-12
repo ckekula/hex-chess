@@ -1,15 +1,17 @@
 import math
 import time
-import pygame
-from typing import Tuple
-from constants import *
-from game import MoveValidator
-from evaluation import Evaluator
 
-def draw_hexagon(surface: pygame.Surface, center: Tuple[float, float],
-                 radius: float, color: Tuple[int, int, int],
-                 outline_color: Tuple[int, int, int], highlight: bool = False):
-    """Draw a single hexagon with outline."""
+import pygame
+
+from constants import *
+from evaluation import Evaluator
+from game import MoveValidator
+
+
+def draw_hexagon(surface: pygame.Surface, center: tuple[float, float],
+                 radius: float, color: tuple[int, int, int],
+                 outline_color: tuple[int, int, int], highlight: bool = False):
+    """Draw a single hexagon."""
     corners = []
     for i in range(6):
         angle_deg = 60 * i
@@ -48,7 +50,7 @@ class Renderer:
     def _draw_captured_pieces(self, screen, center_x, center_y):
         """Draw captured pieces - Green box (left) = your captures, Red box (right) = your losses."""
 
-        # ---- UI constants ----
+        # UI constants
         piece_size = max(26, int(self.board.radius * 0.8))
         h_space = piece_size + 4
         v_space = piece_size + 4
@@ -62,7 +64,7 @@ class Renderer:
         available_top = 250
         available_h = self.window_h - available_top - 70
 
-        # ---- Get captured pieces ----
+        # Get captured pieces
         white_captured = self.board.captured_pieces.get("white", [])
         black_captured = self.board.captured_pieces.get("black", [])
 
@@ -75,7 +77,7 @@ class Renderer:
             green_pieces, green_color = black_captured, "black"
             red_pieces, red_color = white_captured, "white"
 
-        # ---- Shared panel rendering function ----
+        # Shared panel rendering function
         def draw_panel(pieces, piece_color, panel_x, label, border_color, text_color):
             if not pieces:
                 return
@@ -133,7 +135,7 @@ class Renderer:
                 pygame.draw.rect(screen, (255, 255, 255, 200), bg, border_radius=3)
                 screen.blit(overflow_txt, overflow_rect)
 
-        # ---- Draw Left + Right Panels ----
+        # Draw Left + Right Panels
         panel_w = pieces_per_row * h_space + side_pad * 2 + 10
 
         draw_panel(
@@ -160,13 +162,12 @@ class Renderer:
                reset_hover, undo_hover, flip_hover, history,
                promotion_buttons=None, promotion_hover=None, flip_locked=False,
                last_move=None, engine_thinking=False):
-        # Clear screen
-        screen.fill(BACKGROUND)
+        
+        screen.fill(BACKGROUND) # Clear screen
 
         # Draw all hexagons and pieces
         for (q, r), tile in self.board.tiles.items():
-            # If the board is flipped, render tile (q,r) at the pixel
-            # position of (-q,-r) so the visual orientation is rotated 180°.
+            # If the board is flipped, render tile (q,r) at the pixel position of (-q,-r).
             if getattr(self.board, 'flipped', False):
                 display_q, display_r = -q, -r
             else:
@@ -238,25 +239,26 @@ class Renderer:
                 rect = piece_image.get_rect(center=mouse_pos)
                 screen.blit(piece_image, rect)
 
-        # Draw current turn indicator (top center)
+        # Draw current turn indicator
         if engine_thinking:
-            turn_text = self.turn_font.render("ENGINE THINKING...", True, (255, 255, 255))
+            turn_text = self.turn_font.render("ENGINE THINKING...", True, WHITE)
             turn_bg_rect = turn_text.get_rect(center=(self.window_w // 2, 25))
             turn_bg_rect.inflate_ip(20, 10)
+
             # Pulsing effect for thinking indicator
             pulse = int(abs(math.sin(time.time() * 3) * 30))
             turn_color = (70 + pulse, 130 + pulse, 180 + pulse)
             pygame.draw.rect(screen, turn_color, turn_bg_rect, border_radius=5)
-            pygame.draw.rect(screen, (255, 255, 255), turn_bg_rect, 2, border_radius=5)
+            pygame.draw.rect(screen, WHITE, turn_bg_rect, 2, border_radius=5)
             screen.blit(turn_text, turn_text.get_rect(center=(self.window_w // 2, 25)))
         else:
-            turn_text = self.turn_font.render(f"Turn: {self.board.current_turn.upper()}", True, (0, 0, 0))
+            turn_text = self.turn_font.render(f"Turn: {self.board.current_turn.upper()}", True, WHITE)
             turn_bg_rect = turn_text.get_rect(center=(self.window_w // 2, 25))
             turn_bg_rect.inflate_ip(20, 10)
 
         # Draw background for turn indicator
-        turn_color = (240, 240, 240) if self.board.current_turn == "white" else (80, 80, 80)
-        text_color = (0, 0, 0) if self.board.current_turn == "white" else (255, 255, 255)
+        turn_color = WHITE if self.board.current_turn == "white" else BLACK
+        text_color = BLACK if self.board.current_turn == "white" else WHITE
         pygame.draw.rect(screen, turn_color, turn_bg_rect, border_radius=5)
         pygame.draw.rect(screen, (0, 0, 0), turn_bg_rect, 2, border_radius=5)
 
@@ -265,45 +267,43 @@ class Renderer:
         screen.blit(turn_text, turn_text_rect)
 
         # Draw info text
-        text = self.font.render(f"Hexagonal Chess - Gliński's Variant", True, (0, 0, 0))
+        text = self.font.render("Hexagonal Chess - Gliński's Variant", True, WHITE)
         screen.blit(text, (10, 10))
 
-        info_text = self.small_font.render("Click and drag pieces to move", True, (0, 0, 0))
+        info_text = self.small_font.render("Click and drag pieces to move", True, WHITE)
         screen.blit(info_text, (10, 35))
 
         if hovered_coord:
-            coord_text = self.small_font.render(f"Hex: ({hovered_coord[0]}, {hovered_coord[1]})", True, (0, 0, 0))
+            coord_text = self.small_font.render(f"Hex: ({hovered_coord[0]}, {hovered_coord[1]})", True, WHITE)
             screen.blit(coord_text, (10, 55))
 
         # Draw reset button
-        button_color = (100, 200, 100) if reset_hover else (70, 170, 70)
+        button_color = WHITE if reset_hover else BUTTON_BG
         pygame.draw.rect(screen, button_color, reset_button_rect, border_radius=5)
         pygame.draw.rect(screen, (40, 40, 40), reset_button_rect, 2, border_radius=5)
-        reset_text = self.small_font.render("RESET", True, (255, 255, 255))
+        reset_text = self.small_font.render("RESET", True, RESET_COLOR)
         reset_text_rect = reset_text.get_rect(center=reset_button_rect.center)
         screen.blit(reset_text, reset_text_rect)
 
         # Draw undo button below reset (disabled when no history)
         undo_enabled = len(history) > 0
-        undo_color = (100, 150, 250) if (undo_hover and undo_enabled) else ((80, 130, 220) if undo_enabled else (140, 140, 140))
+        undo_color = WHITE if (undo_hover and undo_enabled) else (BUTTON_BG if undo_enabled else BUTTON_DISABLED)
         pygame.draw.rect(screen, undo_color, undo_button_rect, border_radius=5)
         pygame.draw.rect(screen, (40, 40, 40), undo_button_rect, 2, border_radius=5)
-        undo_text = self.small_font.render("UNDO", True, (255, 255, 255) if undo_enabled else (200, 200, 200))
+        undo_text = self.small_font.render("UNDO", True, UNDO_COLOR)
         undo_text_rect = undo_text.get_rect(center=undo_button_rect.center)
         screen.blit(undo_text, undo_text_rect)
 
         # Draw flip button below undo
         if flip_locked:
             # Disabled color
-            flip_color = (130, 130, 130)
-            text_color = (200, 200, 200)
+            flip_color = BUTTON_DISABLED
         else:
-            flip_color = (200, 150, 100) if flip_hover else (170, 120, 80)
-            text_color = (255, 255, 255)
+            flip_color = WHITE if flip_hover else BUTTON_BG
         
         pygame.draw.rect(screen, flip_color, flip_button_rect, border_radius=5)
         pygame.draw.rect(screen, (40, 40, 40), flip_button_rect, 2, border_radius=5)
-        flip_text = self.small_font.render("FLIP", True, text_color)
+        flip_text = self.small_font.render("FLIP", True, FLIP_COLOR)
         flip_text_rect = flip_text.get_rect(center=flip_button_rect.center)
         screen.blit(flip_text, flip_text_rect)
 
@@ -341,7 +341,7 @@ class Renderer:
         # Draw captured pieces before evaluation bar
         self._draw_captured_pieces(screen, center_x, center_y)
         # Draw evaluation bar on the left: white advantage fills upward, black fills downward
-        score, total, phase = Evaluator.evaluate(self.board)
+        score, total, _phase = Evaluator.evaluate(self.board)
         frac = 0.0
         if total and total > 0:
             # fraction in range -1..1
@@ -374,11 +374,11 @@ class Renderer:
         pygame.draw.line(screen, (0, 0, 0), (bar_x, center_y), (bar_x + bar_width, center_y), 2)
 
         # Numeric evaluation display below bar
-        eval_text = self.small_font.render(f"{int(score):+d}", True, (0, 0, 0))
+        eval_text = self.small_font.render(f"{int(score):+d}", True, WHITE)
         eval_rect = eval_text.get_rect(center=(bar_x + bar_width // 2, bar_y + bar_height + 12))
         screen.blit(eval_text, eval_rect)
 
-         # Draw promotion dialog if needed
+         # Draw promotion dialog
         if self.board.pending_promotion and promotion_buttons:
             # Draw semi-transparent overlay
             overlay = pygame.Surface((self.window_w, self.window_h), pygame.SRCALPHA)

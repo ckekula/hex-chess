@@ -1,27 +1,27 @@
-import pygame
-import copy
 import asyncio
-from constants import *
-from hex_board import HexBoard
+import copy
+
+import pygame
+
 from asset_manager import PieceImageManager
-from renderer import Renderer
-from game import MoveValidator
-from evaluation import Evaluator
+from constants import *
 from engine import ChessEngine
+from game import MoveValidator
+from hex_board import HexBoard
+from renderer import Renderer
+
 
 def setup_initial_board(board: HexBoard):
-    """Set up the initial chess piece positions."""
-    # Clear the board first
     for tile in board.tiles.values():
-        tile.remove_piece()
+        tile.remove_piece() # clear the board first
     
-    # Reset turn to white
+    # reset turn to white
     board.current_turn = "white"
     board.en_passant_target = None
     board.pending_promotion = None
     board.captured_pieces = {"white": [], "black": []}
     
-    # WHITE pieces
+    # WHITE
     board.place_piece(1, 4, "white", "king")
     board.place_piece(-1, 5, "white", "queen")
     board.place_piece(3, 2, "white", "rook")
@@ -41,7 +41,7 @@ def setup_initial_board(board: HexBoard):
     board.place_piece(3, 1, "white", "pawn")
     board.place_piece(4, 1, "white", "pawn")
     
-    # BLACK pieces
+    # BLACK
     board.place_piece(1, -5, "black", "king")
     board.place_piece(-1, -4, "black", "queen")
     board.place_piece(3, -5, "black", "rook")
@@ -63,9 +63,8 @@ def setup_initial_board(board: HexBoard):
 
 
 async def main():
-    """Main game loop."""
     pygame.init()
-    # Try to adapt the board size to the current display so it fits smaller screens.
+    # try to adapt the board size to the current display so it fits smaller screens.
     info = pygame.display.Info()
     margin = 80
     avail_w = max(300, info.current_w - margin) if info.current_w else WINDOW_WIDTH
@@ -78,7 +77,7 @@ async def main():
     # Create a temporary board with the default radius to compute how many pixels it needs
     temp_board = HexBoard(BOARD_SIZE, HEX_RADIUS)
     xs, ys = [], []
-    for (q, r) in temp_board.tiles.keys():
+    for (q, r) in temp_board.tiles:
         x, y = temp_board.axial_to_pixel(q, r, 0, 0)
         xs.append(x)
         ys.append(y)
@@ -102,20 +101,17 @@ async def main():
     board = HexBoard(BOARD_SIZE, scaled_radius)
     piece_manager = PieceImageManager(hex_radius=scaled_radius)
 
-    #Initialize chess engine
     engine_thinking = False
-    # Create a separate board instance for the engine to search on
+    # create a separate board instance for the engine to search on
     engine_board = HexBoard(BOARD_SIZE, scaled_radius)
     chess_engine = ChessEngine(engine_board, depth=COMPUTATION_DEPTH)
     
-    # Set up initial piece positions
     setup_initial_board(board)
     
-    # Calculate center of screen using the actual window size
     center_x = window_w // 2
     center_y = window_h // 2
     
-    # Reset button setup
+    # reset button
     button_width = 100
     button_height = 40
     button_x = window_w - button_width - 10
@@ -125,17 +121,15 @@ async def main():
     flip_button_rect = pygame.Rect(button_x, button_y + (button_height + 10) * 2, button_width, button_height)
     flip_locked = False
 
-    # For piece dragging
+    # piece dragging
     selected_tile = None
     dragging = False
     drag_piece = None
-    legal_moves = []  # Store legal moves for selected piece
-    last_move = None  # Will store (from_q, from_r, to_q, to_r)
+    legal_moves = []
+    last_move = None  # store (from_q, from_r, to_q, to_r)
     
-    # only store move data
     history = []  # List of tuples: (from_q, from_r, to_q, to_r, move_info_dict)
      
-    # Font for info
     font = pygame.font.Font(None, 24)
     small_font = pygame.font.Font(None, 18)
     turn_font = pygame.font.Font(None, 32)
@@ -144,13 +138,11 @@ async def main():
     move_validator = MoveValidator(board)
     
     async def make_engine_move():
-        """Async wrapper for engine move to prevent blocking."""
         nonlocal engine_thinking, flip_locked, last_move
         engine_thinking = True
         flip_locked = True
         
         # Sync the engine's board with the display board before searching
-        import copy
         engine_board.tiles = copy.deepcopy(board.tiles)
         engine_board.current_turn = board.current_turn
         engine_board.en_passant_target = board.en_passant_target
@@ -163,22 +155,18 @@ async def main():
         loop = asyncio.get_event_loop()
         best_move = await loop.run_in_executor(None, chess_engine.find_best_move)
         
-        # Apply the best move to the DISPLAY board (not engine board)
+        # Apply the best move to the display board (not the engine board)
         if best_move:
-            (from_q, from_r), (to_q, to_r), value = best_move
+            (from_q, from_r), (to_q, to_r), _value = best_move
             # Store the engine's move for highlighting
             last_move = (from_q, from_r, to_q, to_r)
             
-            # Capture move info before making the move
             move_info = board.capture_move_info(from_q, from_r, to_q, to_r)
-            
-            # Make the move on the display board
             move_made = board.move_piece(from_q, from_r, to_q, to_r)
             
             if move_made:
                 history.append((from_q, from_r, to_q, to_r, move_info))
                 
-            # Handle auto-promotion if needed
             if board.pending_promotion:
                 board.promote_pawn('queen')
         
@@ -263,23 +251,20 @@ async def main():
                             
             elif event.type == pygame.MOUSEBUTTONUP:
                 move_made = False
-                if dragging and selected_tile and hovered_coord and not engine_thinking:
-                    # Only move if destination is a legal move
-                    if hovered_coord in legal_moves:
-                        # Clear last move highlight when player makes a move
-                        last_move = None                    
-                        # Capture move info before making the move
-                        move_info = board.capture_move_info(selected_tile[0], selected_tile[1],
-                                                            hovered_coord[0], hovered_coord[1])
-                        
-                        # Make the move
-                        move_made = board.move_piece(selected_tile[0], selected_tile[1], 
-                                       hovered_coord[0], hovered_coord[1])
-                        
-                        # Store lightweight history
-                        if move_made:
-                            history.append((selected_tile[0], selected_tile[1], 
-                                          hovered_coord[0], hovered_coord[1], move_info))
+                if dragging and selected_tile and hovered_coord and not engine_thinking and hovered_coord in legal_moves:
+                    # Clear last move highlight when player makes a move
+                    last_move = None
+                    
+                    move_info = board.capture_move_info(selected_tile[0], selected_tile[1],
+                                                        hovered_coord[0], hovered_coord[1])
+                    
+                    move_made = board.move_piece(selected_tile[0], selected_tile[1], 
+                                    hovered_coord[0], hovered_coord[1])
+                    
+                    # Store lightweight history
+                    if move_made:
+                        history.append((selected_tile[0], selected_tile[1], 
+                                        hovered_coord[0], hovered_coord[1], move_info))
                 
                 # Always clear selection after mouse release
                 dragging = False
@@ -294,9 +279,9 @@ async def main():
         # Clear screen
         screen.fill(BACKGROUND)
         
-        # Calculate promotion button positions if needed
+        # Calculate promotion button positions
         if board.pending_promotion:
-            q, r, color = board.pending_promotion
+            q, r, _color = board.pending_promotion
             total_width = len(promotion_pieces) * (promotion_button_size + 10) - 10
             start_x = (window_w - total_width) // 2
             start_y = window_h // 2 - promotion_button_size // 2
@@ -308,7 +293,7 @@ async def main():
                                                        promotion_button_size, 
                                                        promotion_button_size)
                 
-        # Draw all hexagons and pieces
+        # draw all hexagons and pieces
         renderer.render(screen, center_x, center_y, mouse_pos, hovered_coord,
                 selected_tile, dragging, drag_piece, legal_moves,
                 reset_button_rect, undo_button_rect, flip_button_rect,

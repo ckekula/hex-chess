@@ -1,6 +1,6 @@
-import pygame
 import os
-from typing import Tuple, Optional, Dict
+
+import pygame
 
 
 class PieceImageManager:
@@ -12,7 +12,7 @@ class PieceImageManager:
     def __init__(self, assets_folder: str = "./assets", hex_radius: int = 40):
         self.assets_folder = assets_folder
         self.hex_radius = hex_radius
-        self.images: Dict[Tuple[str, str], pygame.Surface] = {}
+        self.images: dict[tuple[str, str], pygame.Surface] = {}
         self._load_images()
     
     def _load_images(self):
@@ -42,7 +42,7 @@ class PieceImageManager:
                 else:
                     print(f"Warning: Image not found: {filename}")
     
-    def get_image(self, color: str, piece_name: str) -> Optional[pygame.Surface]:
+    def get_image(self, color: str, piece_name: str) -> pygame.Surface | None:
         """Get the image for a specific piece."""
         return self.images.get((color, piece_name))
 

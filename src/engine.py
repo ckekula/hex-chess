@@ -1,8 +1,9 @@
 import copy
-from typing import Optional, Tuple, List
-from game import MoveValidator
-from evaluation import Evaluator
+
 from constants import PIECE_VALUES
+from evaluation import Evaluator
+from game import MoveValidator
+
 
 class ChessEngine:
     def __init__(self, board, depth):
@@ -53,13 +54,13 @@ class ChessEngine:
         Uses Evaluator.evaluate which returns (score, total_material, phase), where score positive favors white.
         For engine black we invert sign so engine always maximizes returned value.
         """
-        score, total_mat, phase = Evaluator.evaluate(self.board)
+        score, _total_mat, _phase = Evaluator.evaluate(self.board)
         if self.engine_color == 'white':
             return score
         else:
             return -score
 
-    def _order_moves(self, moves: List[Tuple[Tuple[int,int], Tuple[int,int]]], current_color: str) -> List[Tuple[Tuple[int,int], Tuple[int,int]]]:
+    def _order_moves(self, moves: list[tuple[tuple[int,int], tuple[int,int]]], current_color: str) -> list[tuple[tuple[int,int], tuple[int,int]]]:
         """
         Order moves to improve alpha-beta pruning efficiency.
         Priority: captures (MVV-LVA), then other moves.
@@ -194,7 +195,7 @@ class ChessEngine:
             self.transposition_table[position_key] = (depth, min_eval)
             return min_eval
 
-    def find_best_move(self) -> Optional[Tuple[Tuple[int,int], Tuple[int,int], float]]:
+    def find_best_move(self) -> tuple[tuple[int, int], tuple[int, int], float] | None:
         """Search using minimax to find best move."""
         self.nodes_searched = 0
         best_move = None
@@ -238,7 +239,7 @@ class ChessEngine:
         print(f"Searched {self.nodes_searched} nodes.")
         return best_move
 
-    def play_best_move(self) -> Optional[dict]:
+    def play_best_move(self) -> dict | None:
         """
         Find best move and execute it on the real board.
         Returns a dict with move info and evaluation or None if no move possible.

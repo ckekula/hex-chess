@@ -1,10 +1,8 @@
-from typing import Tuple, List, Optional
-
 class MoveGenerator:
     """Encapsulates move-generation and attack detection for a HexBoard.
 
     Expects a board-like object with:
-      - tiles: Dict[(q,r) -> HexTile]
+      - tiles: dict[(q,r) -> HexTile]
       - get_tile(q,r)
       - current_turn
     """
@@ -193,7 +191,7 @@ class MoveValidator:
         self.board = board
         self.move_generator = MoveGenerator(board)
 
-    def get_legal_moves(self, q: int, r: int) -> List[Tuple[int, int]]:
+    def get_legal_moves(self, q: int, r: int) -> list[tuple[int, int]]:
         tile = self.board.get_tile(q, r)
         if not tile or not tile.has_piece():
             return []
@@ -251,7 +249,7 @@ class MoveValidator:
                     return True
         return False  
     
-    def find_king(self, color: str) -> Optional[Tuple[int, int]]:
+    def find_king(self, color: str) -> tuple[int, int] | None:
         """Find the position of a king of the given color."""
         for (q, r), tile in self.board.tiles.items():
             if tile.has_piece():
@@ -309,7 +307,7 @@ class MoveValidator:
     
     def has_any_legal_moves(self, color: str) -> bool:
         """Check if a color has any legal moves."""
-        for (q, r), tile in self.board.tiles.items():  # Fixed: use self.board.tiles
+        for (q, r), tile in self.board.tiles.items():
             if not tile.has_piece():
                 continue
             

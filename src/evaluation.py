@@ -1,16 +1,16 @@
-from constants import PIECE_VALUES, MAX_PHASE, PHASE_VALUES, BOARD_SIZE
+from constants import BOARD_SIZE, MAX_PHASE, PHASE_VALUES, PIECE_VALUES
 from hex_board import HexGeometry
 
+
 class ProceduralPST:
-    """Procedural piece-square table generation for hexagonal boards."""
+    """Procedural piece-square table generation."""
     
     @staticmethod
-    def pawn_pst(q: int, r: int, color: str, is_endgame: bool = False) -> int:
+    def pawn_pst(q: int, r: int, is_endgame: bool = False) -> int:
         """
         Pawn evaluation based on advancement toward center/promotion.
         Returns starting_penalty + advancement_bonus + centrality_bonus
         """
-        center_dist = HexGeometry.distance_from_center(q, r)
         edge_dist = HexGeometry.distance_from_edge(q, r, BOARD_SIZE)
         file_centrality = HexGeometry.get_file_centrality(q, BOARD_SIZE)
         
@@ -19,7 +19,6 @@ class ProceduralPST:
         advancement_bonus = edge_dist * 10
         
         if is_endgame:
-            # Endgame: pawns much more valuable, especially advanced ones
             advancement_bonus = edge_dist * 20
             # Massive bonus for pawns deep in opponent territory
             if edge_dist >= 4:
@@ -38,18 +37,16 @@ class ProceduralPST:
         return starting_penalty + advancement_bonus + centrality_bonus
 
     @staticmethod
-    def knight_pst(q: int, r: int, color: str, is_endgame: bool = False) -> int:
+    def knight_pst(q: int, r: int, is_endgame: bool = False) -> int:
         """
         Knight evaluation based on centralization.
         """
         center_dist = HexGeometry.distance_from_center(q, r)
         edge_dist = HexGeometry.distance_from_edge(q, r, BOARD_SIZE)
         
-        # Knights want to be central
         centralization_bonus = edge_dist * 15
         center_penalty = center_dist * -8
         
-        # Edge penalty (knights on rim are dim)
         if edge_dist == 0:
             edge_penalty = -40
         elif edge_dist == 1:
@@ -57,13 +54,12 @@ class ProceduralPST:
         else:
             edge_penalty = 0
         
-        # Knights slightly worse in endgame
         endgame_penalty = -10 if is_endgame else 0
         
         return centralization_bonus + center_penalty + edge_penalty + endgame_penalty
     
     @staticmethod
-    def bishop_pst(q: int, r: int, color: str, is_endgame: bool = False) -> int:
+    def bishop_pst(q: int, r: int, is_endgame: bool = False) -> int:
         """
         Bishop evaluation based on long diagonal control.
         Color-independent (centralization is same for both).
@@ -71,32 +67,23 @@ class ProceduralPST:
         center_dist = HexGeometry.distance_from_center(q, r)
         edge_dist = HexGeometry.distance_from_edge(q, r, BOARD_SIZE)
         
-        # Bishops want central positions for maximum diagonal control
         centralization_bonus = (4 - center_dist) * 8
-        
-        # Edge penalty
-        edge_penalty = -20 if edge_dist == 0 else 0
-        
-        # Bishops better in endgame (more open board)
+        edge_penalty = -20 if edge_dist == 0 else 0        
         endgame_bonus = 5 if is_endgame else 0
         
         return centralization_bonus + edge_penalty + endgame_bonus
     
 
     @staticmethod
-    def rook_pst(q: int, r: int, color: str, is_endgame: bool = False) -> int:
+    def rook_pst(q: int, r: int, is_endgame: bool = False) -> int:
         """
         Rook evaluation based on penetration into opponent territory.
-        Symmetrical for both colors.
         """
-        center_dist = HexGeometry.distance_from_center(q, r)
         edge_dist = HexGeometry.distance_from_edge(q, r, BOARD_SIZE)
         file_centrality = HexGeometry.get_file_centrality(q, BOARD_SIZE)
         
-        # Base value for all positions
         base = 5
         
-        # Reward penetration (rooks deep in opponent territory are powerful)
         if edge_dist >= 4:
             advancement_bonus = 35
         elif edge_dist >= 3:
@@ -106,10 +93,8 @@ class ProceduralPST:
         else:
             advancement_bonus = 0
         
-        # Slight preference for central files
         centrality_bonus = file_centrality * 2
         
-        # In endgame, rooks are active everywhere
         if is_endgame:
             endgame_bonus = 10
             # Less emphasis on advancement in endgame
@@ -120,10 +105,9 @@ class ProceduralPST:
         return base + advancement_bonus + centrality_bonus + endgame_bonus
 
     @staticmethod
-    def queen_pst(q: int, r: int, color: str, is_endgame: bool = False) -> int:
+    def queen_pst(q: int, r: int, is_endgame: bool = False) -> int:
         """
         Queen evaluation based on centralization.
-        Color-independent (centralization is same for both).
         """
         center_dist = HexGeometry.distance_from_center(q, r)
         edge_dist = HexGeometry.distance_from_edge(q, r, BOARD_SIZE)
@@ -149,14 +133,12 @@ class ProceduralPST:
     
 
     @staticmethod
-    def king_pst(q: int, r: int, color: str, is_endgame: bool = False) -> int:
+    def king_pst(q: int, r: int, is_endgame: bool = False) -> int:
         """
         King evaluation - complete opposite in middlegame vs endgame.
-        Symmetrical for both colors.
         """
         center_dist = HexGeometry.distance_from_center(q, r)
         edge_dist = HexGeometry.distance_from_edge(q, r, BOARD_SIZE)
-        file_centrality = HexGeometry.get_file_centrality(q, BOARD_SIZE)
         
         if is_endgame:
             # ENDGAME: King should be centralized and active
@@ -185,19 +167,8 @@ class PST:
     def get_pst_value(piece_name: str, q: int, r: int, color: str, phase: int) -> int:
         """
         Get procedurally generated PST value.
-        
-        Args:
-            piece_name: Name of the piece
-            q, r: Axial coordinates
-            color: 'white' or 'black'
-            phase: Current game phase (0 to MAX_PHASE)
-            
-        Returns:
-            Centipawn value for this piece's position
         """
-        MAX_PHASE = 26
         
-        # Map piece names to their PST functions
         piece_funcs = {
             'pawn': ProceduralPST.pawn_pst,
             'knight': ProceduralPST.knight_pst,
@@ -212,8 +183,8 @@ class PST:
             return 0
         
         # Calculate both MG and EG values using actual coordinates and color
-        mg_value = func(q, r, color, is_endgame=False)
-        eg_value = func(q, r, color, is_endgame=True)
+        mg_value = func(q, r, is_endgame=False)
+        eg_value = func(q, r, is_endgame=True)
         
         # Tapered evaluation: blend MG and EG based on phase
         tapered_value = (mg_value * phase + eg_value * (MAX_PHASE - phase)) // MAX_PHASE
@@ -231,7 +202,7 @@ class Evaluator:
         
         for tile in board.tiles.values():
             if tile and tile.has_piece():
-                color, name = tile.get_piece()
+                _color, name = tile.get_piece()
                 phase += PHASE_VALUES.get(name, 0)
         
         # Clamp phase to MAX_PHASE
@@ -362,8 +333,8 @@ class Evaluator:
         
         # Check position symmetry for kings
         print("\n=== KING POSITION ANALYSIS ===")
-        white_king = [p for p in white_pieces if p['name'] == 'king'][0]
-        black_king = [p for p in black_pieces if p['name'] == 'king'][0]
+        white_king = next(p for p in white_pieces if p['name'] == 'king')
+        black_king = next(p for p in black_pieces if p['name'] == 'king')
         print(f"White king: pos={white_king['pos']}, rank={white_king['rank']}, "
               f"center_dist={white_king['center_dist']}, edge_dist={white_king['edge_dist']}")
         print(f"Black king: pos={black_king['pos']}, rank={black_king['rank']}, "
