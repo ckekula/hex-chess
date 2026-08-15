@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import sys
 
 import pygame
 
@@ -150,11 +151,16 @@ async def main():
         engine_board.captured_pieces = copy.deepcopy(board.captured_pieces)
         if hasattr(board, 'castling_rights'):
             engine_board.castling_rights = copy.deepcopy(board.castling_rights)
-        
-        # Run engine computation in thread pool to avoid blocking
-        loop = asyncio.get_event_loop()
-        best_move = await loop.run_in_executor(None, chess_engine.find_best_move)
-        
+
+        if sys.platform == "emscripten":
+            # WASM has no thread pool - Call synchronously
+            # The UI freezes during search on Web.
+            best_move = chess_engine.find_best_move()
+        else:
+            # Desktop: Run engine computation in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            best_move = await loop.run_in_executor(None, chess_engine.find_best_move)
+
         # Apply the best move to the display board (not the engine board)
         if best_move:
             (from_q, from_r), (to_q, to_r), _value = best_move
